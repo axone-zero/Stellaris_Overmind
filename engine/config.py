@@ -30,6 +30,9 @@ class LLMConfig:
     temperature: float = 0.3
     timeout_s: float = 30.0
     api_key: str = ""
+    # Thinking models (Qwen3.x, etc.): "none" disables reasoning so the whole
+    # max_tokens budget goes to the answer.  Empty = don't send the parameter.
+    reasoning_effort: str = ""
 
     # Hybrid / online mode
     mode: str = "local"                       # local | online | hybrid
@@ -39,6 +42,7 @@ class LLMConfig:
     online_max_tokens: int = 256
     online_temperature: float = 0.3
     online_timeout_s: float = 60.0
+    online_reasoning_effort: str = ""
 
     # Prompt optimization
     compact_json: bool = True                 # minified JSON in prompts
@@ -203,6 +207,7 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
         cfg.llm.max_tokens = llm.get("max_tokens", cfg.llm.max_tokens)
         cfg.llm.temperature = llm.get("temperature", cfg.llm.temperature)
         cfg.llm.timeout_s = llm.get("timeout_s", cfg.llm.timeout_s)
+        cfg.llm.reasoning_effort = llm.get("reasoning_effort", cfg.llm.reasoning_effort)
         cfg.llm.mode = llm.get("mode", cfg.llm.mode)
         cfg.llm.compact_json = llm.get("compact_json", cfg.llm.compact_json)
         cfg.llm.prompt_cache = llm.get("prompt_cache", cfg.llm.prompt_cache)
@@ -218,6 +223,9 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
                 "temperature", cfg.llm.online_temperature,
             )
             cfg.llm.online_timeout_s = ol.get("timeout_s", cfg.llm.online_timeout_s)
+            cfg.llm.online_reasoning_effort = ol.get(
+                "reasoning_effort", cfg.llm.online_reasoning_effort,
+            )
 
     # Bridge section
     if "bridge" in data:

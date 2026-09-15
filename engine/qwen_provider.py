@@ -62,12 +62,14 @@ class QwenVLLMProvider(LLMProvider):
         max_tokens: int = 256,
         temperature: float = 0.3,
         timeout_s: float = 30.0,
+        reasoning_effort: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._timeout_s = timeout_s
+        self._reasoning_effort = reasoning_effort
         self.stats = _SimpleProviderStats()
 
     # ------------------------------------------------------------------ #
@@ -92,6 +94,8 @@ class QwenVLLMProvider(LLMProvider):
             "temperature": self._temperature,
             "stream": False,
         }
+        if self._reasoning_effort:
+            payload["reasoning_effort"] = self._reasoning_effort
         t0 = time.monotonic()
         data = self._post("/v1/chat/completions", payload)
         latency = (time.monotonic() - t0) * 1000
@@ -171,6 +175,7 @@ class OpenAICompatProvider(LLMProvider):
         max_tokens: int = 256,
         temperature: float = 0.3,
         timeout_s: float = 30.0,
+        reasoning_effort: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
@@ -178,6 +183,9 @@ class OpenAICompatProvider(LLMProvider):
         self._max_tokens = max_tokens
         self._temperature = temperature
         self._timeout_s = timeout_s
+        # "none" turns off thinking on Qwen3.x-style models (LM Studio, vLLM,
+        # Ollama, OpenRouter all honour the OpenAI ``reasoning_effort`` field).
+        self._reasoning_effort = reasoning_effort
         self.stats = _SimpleProviderStats()
 
     def complete(self, prompt: str) -> LLMResponse:
@@ -197,6 +205,8 @@ class OpenAICompatProvider(LLMProvider):
             "temperature": self._temperature,
             "stream": False,
         }
+        if self._reasoning_effort:
+            payload["reasoning_effort"] = self._reasoning_effort
         t0 = time.monotonic()
         data = self._post("/v1/chat/completions", payload)
         latency = (time.monotonic() - t0) * 1000

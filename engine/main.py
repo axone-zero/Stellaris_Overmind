@@ -48,6 +48,7 @@ def _build_local_provider(cfg) -> LLMProvider | None:
             max_tokens=cfg.llm.max_tokens,
             temperature=cfg.llm.temperature,
             timeout_s=cfg.llm.timeout_s,
+            reasoning_effort=cfg.llm.reasoning_effort,
         )
 
     logging.warning("Unknown provider '%s', falling back to stub", name)
@@ -66,6 +67,7 @@ def _build_online_provider(cfg) -> LLMProvider | None:
         max_tokens=cfg.llm.online_max_tokens,
         temperature=cfg.llm.online_temperature,
         timeout_s=cfg.llm.online_timeout_s,
+        reasoning_effort=cfg.llm.online_reasoning_effort,
     )
 
 
@@ -128,6 +130,7 @@ def _build_planner_provider(cfg, main_provider: LLMProvider) -> LLMProvider | No
         max_tokens=cfg.planner.max_tokens,
         temperature=cfg.planner.temperature,
         timeout_s=cfg.llm.timeout_s,
+        reasoning_effort=cfg.llm.reasoning_effort,
     )
 
 

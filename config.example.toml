@@ -45,6 +45,11 @@ prompt_cache = true
 # Only needed for remote API providers
 # api_key = ""
 
+# Thinking models (Qwen3.x and similar): set "none" to disable reasoning so the
+# whole max_tokens budget goes to the ACTION/TARGET/REASON answer.  Leave unset
+# for models without a thinking mode.
+# reasoning_effort = "none"
+
 # Online provider — used when mode = "online" or "hybrid"
 # Any OpenAI-compatible API: OpenRouter, Together, Groq, Azure AI Foundry, etc.
 # [llm.online]
