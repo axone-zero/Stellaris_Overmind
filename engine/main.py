@@ -49,6 +49,7 @@ def _build_local_provider(cfg) -> LLMProvider | None:
             timeout_s=cfg.llm.timeout_s,
             reasoning_effort=cfg.llm.reasoning_effort,
             base_url=cfg.llm.base_url if cfg.llm.base_url != "http://localhost:8000" else "",
+            proxy=cfg.llm.proxy,
         )
 
     if name in ("openai-compat", "openai", "ollama", "lm-studio", "lmstudio",
@@ -81,6 +82,7 @@ def _build_online_provider(cfg) -> LLMProvider | None:
             timeout_s=cfg.llm.online_timeout_s,
             reasoning_effort=cfg.llm.online_reasoning_effort,
             base_url=cfg.llm.online_base_url,
+            proxy=cfg.llm.online_proxy,
         )
 
     if not cfg.llm.online_base_url or not cfg.llm.online_model:

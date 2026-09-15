@@ -28,12 +28,14 @@ console = [
 ]
 anthropic = [
     "anthropic>=1.0",
+    "socksio>=1.0",   # socks5:// proxy support for the SDK's HTTP client
 ]
 tracking = [
     "wandb>=0.19",
 ]
 dev = [
     "anthropic>=1.0",
+    "socksio>=1.0",
     "pytest>=8.0",
     "ruff>=0.5",
     "mypy>=1.10",

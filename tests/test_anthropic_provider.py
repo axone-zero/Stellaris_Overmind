@@ -177,6 +177,48 @@ def test_base_url_is_passed_to_sdk_client(monkeypatch: pytest.MonkeyPatch) -> No
     assert captured["api_key"] == "sk-test"
 
 
+def test_proxy_builds_http_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    import anthropic
+
+    captured: dict = {}
+
+    class _Client:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    class _HttpClient:
+        def __init__(self, proxy: str) -> None:
+            self.proxy = proxy
+
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+    monkeypatch.setattr(anthropic, "DefaultHttpxClient", _HttpClient)
+    AnthropicProvider(api_key="sk-test", proxy="socks5://127.0.0.1:2080")
+    assert captured["http_client"].proxy == "socks5://127.0.0.1:2080"
+
+    captured.clear()
+    AnthropicProvider(api_key="sk-test")
+    assert "http_client" not in captured
+
+
+def test_config_parses_proxy(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text(
+        "\n".join([
+            "[llm]",
+            'provider = "stub"',
+            'proxy = "http://p:1"',
+            "[llm.online]",
+            'provider = "anthropic"',
+            'model = "m"',
+            'proxy = "socks5://127.0.0.1:2080"',
+        ]),
+        encoding="utf-8",
+    )
+    cfg = load_config(cfg_file)
+    assert cfg.llm.proxy == "http://p:1"
+    assert cfg.llm.online_proxy == "socks5://127.0.0.1:2080"
+
+
 def test_build_online_provider_uses_anthropic(tmp_path: Path) -> None:
     from engine.main import _build_online_provider
 

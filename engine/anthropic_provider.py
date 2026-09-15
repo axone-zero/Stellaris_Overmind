@@ -15,8 +15,10 @@ Design notes:
     Opus 5 performs better with shallow thinking than with thinking off.
   - The API key is resolved by the SDK (``ANTHROPIC_API_KEY`` or an
     ``ant auth login`` profile) unless one is passed explicitly.
-  - ``base_url`` (or ``ANTHROPIC_BASE_URL``) points the SDK at a proxy or
-    relay; leave empty to talk to api.anthropic.com directly.
+  - ``base_url`` (or ``ANTHROPIC_BASE_URL``) points the SDK at a relay;
+    leave empty to talk to api.anthropic.com directly.
+  - ``proxy`` routes the connection through an HTTP or SOCKS5 proxy
+    (``socks5://host:port``) without changing the API address.
 """
 
 from __future__ import annotations
@@ -69,6 +71,7 @@ class AnthropicProvider(LLMProvider):
         timeout_s: float = 120.0,
         reasoning_effort: str = "",
         base_url: str = "",
+        proxy: str = "",
         client: Any | None = None,
     ) -> None:
         self._model = model
@@ -85,8 +88,13 @@ class AnthropicProvider(LLMProvider):
             if api_key:
                 kwargs["api_key"] = api_key
             if base_url:
-                # Proxy / relay in front of api.anthropic.com (also: ANTHROPIC_BASE_URL env)
+                # Relay in front of api.anthropic.com (also: ANTHROPIC_BASE_URL env)
                 kwargs["base_url"] = base_url.rstrip("/")
+            if proxy:
+                # HTTP/SOCKS proxy for the SDK's HTTP client; socks5:// needs `socksio`.
+                from anthropic import DefaultHttpxClient
+
+                kwargs["http_client"] = DefaultHttpxClient(proxy=proxy)
             self._client = anthropic.Anthropic(**kwargs)
 
     # ------------------------------------------------------------------ #

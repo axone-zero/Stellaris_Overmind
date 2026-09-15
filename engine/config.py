@@ -33,6 +33,9 @@ class LLMConfig:
     # Thinking models (Qwen3.x, etc.): "none" disables reasoning so the whole
     # max_tokens budget goes to the answer.  Empty = don't send the parameter.
     reasoning_effort: str = ""
+    # Outbound proxy for cloud providers, e.g. "socks5://127.0.0.1:2080" or
+    # "http://127.0.0.1:8080".  Empty = direct connection.
+    proxy: str = ""
 
     # Hybrid / online mode
     mode: str = "local"                       # local | online | hybrid
@@ -44,6 +47,7 @@ class LLMConfig:
     online_temperature: float = 0.3
     online_timeout_s: float = 60.0
     online_reasoning_effort: str = ""
+    online_proxy: str = ""
 
     # Prompt optimization
     compact_json: bool = True                 # minified JSON in prompts
@@ -209,6 +213,7 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
         cfg.llm.temperature = llm.get("temperature", cfg.llm.temperature)
         cfg.llm.timeout_s = llm.get("timeout_s", cfg.llm.timeout_s)
         cfg.llm.reasoning_effort = llm.get("reasoning_effort", cfg.llm.reasoning_effort)
+        cfg.llm.proxy = llm.get("proxy", cfg.llm.proxy)
         cfg.llm.mode = llm.get("mode", cfg.llm.mode)
         cfg.llm.compact_json = llm.get("compact_json", cfg.llm.compact_json)
         cfg.llm.prompt_cache = llm.get("prompt_cache", cfg.llm.prompt_cache)
@@ -228,6 +233,7 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
             cfg.llm.online_reasoning_effort = ol.get(
                 "reasoning_effort", cfg.llm.online_reasoning_effort,
             )
+            cfg.llm.online_proxy = ol.get("proxy", cfg.llm.online_proxy)
 
     # Bridge section
     if "bridge" in data:
