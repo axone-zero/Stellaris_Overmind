@@ -162,6 +162,21 @@ def test_config_online_provider_defaults_to_openai_compat(tmp_path: Path) -> Non
     assert load_config(cfg_file).llm.online_provider == "openai-compat"
 
 
+def test_base_url_is_passed_to_sdk_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    import anthropic
+
+    captured: dict = {}
+
+    class _Client:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+    AnthropicProvider(api_key="sk-test", base_url="https://relay.example/v1/")
+    assert captured["base_url"] == "https://relay.example/v1"
+    assert captured["api_key"] == "sk-test"
+
+
 def test_build_online_provider_uses_anthropic(tmp_path: Path) -> None:
     from engine.main import _build_online_provider
 
