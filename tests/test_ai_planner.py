@@ -160,6 +160,26 @@ def test_plan_log_names_the_empire(caplog: pytest.LogCaptureFixture) -> None:
     assert "Rebuild the fleet" in lines[0]
 
 
+def test_council_logs_each_advisor(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    from engine.config import MultiAgentConfig
+
+    controller = AILoopController(
+        provider=StubProvider(),
+        multi_agent_config=MultiAgentConfig(enabled=True, parallel=False, arbiter_uses_llm=False),
+        fast_decisions=False,
+    )
+    with caplog.at_level(logging.INFO, logger="engine.game_loop"):
+        directive = controller.process_states([_state(3, 2230)])[0]
+    assert directive is not None
+    msgs = [r.getMessage() for r in caplog.records]
+    advisors = [m for m in msgs if m.startswith("[Empire 3] advisor ")]
+    assert {m.split()[3] for m in advisors} == {"domestic", "military"}
+    assert any("conf " in m for m in advisors)
+    assert any(m.startswith("[Empire 3] council → ") and "method=" in m for m in msgs)
+
+
 def test_code_only_planner_when_no_provider() -> None:
     controller = AILoopController(
         provider=StubProvider(),

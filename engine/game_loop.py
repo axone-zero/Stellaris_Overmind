@@ -488,9 +488,9 @@ class GameLoopController:
             result.total_latency_ms,
         )
         for rec in result.recommendations:
-            log.debug(
-                "  %s → %s (conf=%.2f): %s",
-                rec.agent_role, rec.action, rec.confidence, rec.reasoning,
+            log.info(
+                "  advisor %s → %s (conf %.2f): %s",
+                rec.agent_role, rec.action, rec.confidence, rec.reasoning or "-",
             )
 
         # Validate (same gate as single-agent)
@@ -998,24 +998,35 @@ class AILoopController:
         result = council.decide(state, event, strategic_context=strategic_context)
         directive = result.directive
         self.stats.last_decision_time_ms = result.total_latency_ms
+        empire_name = _empire_display_name(state, country_id)
+
+        # Each advisor's opinion, so the council's reasoning is visible in the log
+        for rec in result.recommendations:
+            log.info(
+                "[%s] advisor %s → %s%s (conf %.2f, %.0fms): %s",
+                empire_name, rec.agent_role, rec.action,
+                f" @ {rec.target}" if rec.target else "",
+                rec.confidence,
+                result.agent_latencies_ms.get(rec.agent_role, 0.0),
+                rec.reasoning or "-",
+            )
 
         # Validate
         vresult = validate_directive(directive.to_dict(), ruleset, state)
         if not vresult.valid:
             self.stats.validation_errors += 1
-            empire_name = _empire_display_name(state, country_id)
             log.warning(
                 "[%s] council rejected: %s", empire_name, vresult.errors,
             )
             return None
 
         self.stats.decisions_made += 1
-        empire_name = _empire_display_name(state, country_id)
         self.stats.last_action = f"{directive.action} ({empire_name})"
         self.stats.empire_status[empire_name] = directive.action
         log.info(
-            "[%s] council → %s (%.0fms)",
-            empire_name, directive.action, result.total_latency_ms,
+            "[%s] council → %s (method=%s, %.0fms)",
+            empire_name, directive.action, result.arbitration_method,
+            result.total_latency_ms,
         )
         return directive
 
