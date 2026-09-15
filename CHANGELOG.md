@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-16 — Claude Opus planner for AI empires, thinking-model support, throughput
+
+### Anthropic provider
+- **`provider = "anthropic"`** in `[llm]` or `[llm.online]` — calls Claude through the
+  official `anthropic` SDK (`pip install -e ".[anthropic]"`); default model `claude-opus-5`
+- `reasoning_effort` maps to Claude effort levels (`"none"` → `low`); no sampling params sent
+- `proxy` (`socks5://` / `http://`) and `base_url` (relay) options; refusals and missing
+  credentials surface as `LLMProviderError` so the planner falls back to code assessment
+
+### Strategic planner in AI mode
+- One `StrategicPlanner` per AI empire, re-planned every `[planner] interval_years` or on a
+  phase transition, before the fast path so cadence is kept
+- Plan block injected into the single-agent prompt (`build_prompt(strategic_context=...)`) and
+  passed to per-empire councils; player-mode single-agent path gets the same injection
+
+### Thinking models
+- **`reasoning_effort`** in `[llm]` / `[llm.online]` forwarded as the OpenAI-compatible field
+  (LM Studio, vLLM, Ollama, OpenRouter) — `"none"` stops Qwen3.x from spending the whole
+  `max_tokens` budget on hidden reasoning
+
+### Throughput (many empires, frequent autosaves)
+- **`[target] decision_interval_months`** — fresh decision per empire every N in-game months;
+  events bypass the interval; planner still runs on skipped ticks
+- `[llm] compact_json` now actually wired — CURRENT STATE emitted minified (~30% fewer tokens)
+- Prompt asks for a one-sentence REASON; recommended `max_tokens = 96` (was cut off at 256)
+
+### Fixes
+- `scripts/setup.ps1` stamped `supported_version="v4.3.*"` in the generated mod descriptor
+- `.venv/` ignored
+
 ## v0.4.0 — 2026-04-24 — Public Repo Hardening & Community Credits
 
 ### Security & Supply Chain

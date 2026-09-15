@@ -107,6 +107,10 @@ ollama pull qwen2.5:3b              # 3B Q4, ~2GB VRAM
 # Recommended settings: Context=4096, GPU Offload=max, Concurrent Predictions=4
 ```
 
+Thinking models (Qwen3.x and similar) spend the whole answer budget on hidden
+reasoning unless told otherwise — set `reasoning_effort = "none"` in `[llm]`
+so the ACTION/TARGET/REASON answer arrives complete.
+
 **Docker vLLM (alternative — GPTQ quantized):**
 ```powershell
 docker compose up qwen -d
@@ -114,7 +118,14 @@ docker compose up qwen -d
 
 **Cloud API (no GPU needed):**
 Set `mode = "online"` in config.toml and configure `[llm.online]` with an
-OpenAI-compatible endpoint (OpenRouter, Together, Azure AI Foundry, etc.).
+OpenAI-compatible endpoint (OpenRouter, Together, Azure AI Foundry, etc.),
+or `provider = "anthropic"` to call Claude through the official SDK
+(`pip install -e ".[anthropic]"`). The Anthropic provider accepts an optional
+`proxy` (`socks5://host:port` or `http://host:port`) and `base_url` (relay).
+
+**Local + Claude Opus (recommended for AI mode):** keep the local model for
+per-tick decisions and let Claude Opus write each empire's long-term plan —
+see *Claude Opus as strategic planner* under Config Reference.
 
 ---
 
@@ -183,7 +194,20 @@ mode = "ai"
 # ai_exclude_ids = [3]            # skip these
 ai_exclude_fallen = true           # skip Fallen Empires
 fast_decisions = true              # code-only fast path for trivial decisions
+decision_interval_months = 3       # fresh decision per empire every 3 in-game months
+                                   # (events such as WAR_STARTED bypass the interval)
+
+[planner]
+enabled = true                     # one strategic planner per AI empire
+provider = "online"                # e.g. Claude Opus from [llm.online]
+interval_years = 5                 # re-plan every 5 years or on a phase change
 ```
+
+**Throughput with many empires.** Each decision costs the local model one
+prompt read (~3K tokens) plus a ~50-token answer. With 16 empires and monthly
+autosaves, `decision_interval_months = 3` cuts the per-save load to roughly
+one third; the engine always processes the newest save and skips stale ones.
+Keep `max_tokens` around 96 — the prompt asks for a one-sentence REASON.
 
 ### Offline Testing (no GPU)
 
@@ -202,13 +226,13 @@ Copy `config.example.toml` to `config.toml` and edit. Key sections:
 
 | Section | Purpose |
 |---|---|
-| `[llm]` | Provider (`ollama`/`openai-compat`/`qwen-vllm`/`stub`), model, mode (`local`/`online`/`hybrid`), timeout |
-| `[llm.online]` | Cloud API fallback — base_url, model, api_key |
+| `[llm]` | Provider (`ollama`/`lm-studio`/`openai-compat`/`anthropic`/`qwen-vllm`/`stub`), model, mode (`local`/`online`/`hybrid`), timeout, `reasoning_effort`, `compact_json` |
+| `[llm.online]` | Cloud API — `provider` (`openai-compat`/`anthropic`), base_url, model, api_key, `reasoning_effort`, `proxy` |
 | `[bridge]` | `save_dir` (autosave folder), `bridge_dir` (mod reads from here), `poll_interval_s` |
 | `[empire]` | `auto_detect = true` (default) or manual: ethics, civics, traits, origin, government |
-| `[target]` | `mode = "player"` (advisor) or `mode = "ai"` (AI empire control) |
+| `[target]` | `mode = "player"` (advisor) or `mode = "ai"` (AI empire control), `decision_interval_months` |
 | `[multi_agent]` | `enabled`, `parallel`, `arbiter_uses_llm` |
-| `[planner]` | `enabled`, `interval_years`, optional separate provider |
+| `[planner]` | `enabled`, `interval_years`, provider (`same`/`online`/`none` or a separate endpoint); in AI mode one planner per empire |
 | `[training]` | `replay_dir`, SFT/DPO thresholds, teacher model, quantization |
 
 **Ollama config example:**
@@ -231,6 +255,29 @@ mode = "online"
 base_url = "https://openrouter.ai/api/v1"
 model = "qwen/qwen-2.5-72b-instruct"
 api_key = ""  # or set OVERMIND_LLM_ONLINE_API_KEY env var
+```
+
+**Claude Opus as strategic planner (local model per tick):**
+```toml
+[llm]
+provider = "lm-studio"
+mode = "local"
+base_url = "http://localhost:1234"
+model = "qwen-27b"
+max_tokens = 96
+reasoning_effort = "none"     # thinking models: keep the budget for the answer
+
+[llm.online]
+provider = "anthropic"        # official SDK; key from ANTHROPIC_API_KEY or api_key
+model = "claude-opus-5"
+max_tokens = 4096             # thinking tokens count toward this budget
+reasoning_effort = "medium"   # low | medium | high | xhigh | max
+# proxy = "socks5://127.0.0.1:1080"
+
+[planner]
+enabled = true
+provider = "online"
+interval_years = 5
 ```
 
 ---
