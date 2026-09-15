@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from engine.bridge import BridgeConfig, BridgeWriter, UnifiedBridge
 from engine.config import MultiAgentConfig, PlannerConfig
@@ -28,6 +30,9 @@ from engine.personality_shards import build_personality
 from engine.recorder import GameRecorder
 from engine.ruleset_generator import generate_ruleset
 from engine.validator import validate_directive
+
+if TYPE_CHECKING:
+    from engine.strategic_planner import StrategicContext, StrategicPlanner
 
 log = logging.getLogger(__name__)
 
@@ -357,7 +362,11 @@ class GameLoopController:
             return self._process_council(state, event)
 
         # Single-agent path (original)
-        prompt = build_prompt(self._ruleset, self._personality, state, event)
+        strategic_context = self._planner.context if self._planner is not None else None
+        prompt = build_prompt(
+            self._ruleset, self._personality, state, event,
+            strategic_context=strategic_context,
+        )
 
         # Query LLM with retries
         directive = self._query_llm(prompt)
@@ -605,6 +614,8 @@ class AILoopController:
         recorder: GameRecorder | None = None,
         fast_decisions: bool = True,
         fast_cutoff_year: int = 2250,
+        planner_config: PlannerConfig | None = None,
+        planner_provider: LLMProvider | None = None,
     ) -> None:
         self._provider = provider or StubProvider()
         self._bridge_config = bridge_config or BridgeConfig()
@@ -620,6 +631,20 @@ class AILoopController:
         self._fast_cutoff_year = fast_cutoff_year
         self._running = False
 
+        # Strategic planner (opt-in): one planner per AI empire, each asking
+        # the planner provider (e.g. Claude Opus) for a long-term plan every
+        # ``interval_years`` in-game years or on a phase transition.
+        self._planner_config = planner_config or PlannerConfig()
+        self._planner_provider: LLMProvider | None = None
+        if self._planner_config.enabled:
+            if planner_provider is not None:
+                self._planner_provider = planner_provider
+            elif self._planner_config.provider == "same":
+                self._planner_provider = self._provider
+            # else: code-only assessment (provider stays None)
+        self._planners: dict[int, StrategicPlanner] = {}
+        self._planner_lock = threading.Lock()
+
         # Cache rulesets/personalities per country ID
         self._rulesets: dict[int, dict] = {}
         self._personalities: dict[int, dict] = {}
@@ -630,11 +655,54 @@ class AILoopController:
 
         self.stats = LoopStats()
 
+        if self._planner_config.enabled:
+            planner_label = (
+                f"every {self._planner_config.interval_years}y via "
+                f"{self._planner_provider.name if self._planner_provider else 'code'}"
+            )
+        else:
+            planner_label = "disabled"
         log.info(
-            "AI controller initialized: ids=%s exclude=%s parallel=%s multi_agent=%s",
+            "AI controller initialized: ids=%s exclude=%s parallel=%s multi_agent=%s planner=%s",
             country_ids or "all", exclude_ids or "none",
-            parallel_empires, self._multi_agent_config.enabled,
+            parallel_empires, self._multi_agent_config.enabled, planner_label,
         )
+
+    # ------------------------------------------------------------------ #
+    # Strategic planner (per empire)
+    # ------------------------------------------------------------------ #
+
+    @property
+    def planners(self) -> dict[int, StrategicPlanner]:
+        """Per-empire strategic planners (country_id -> StrategicPlanner)."""
+        return self._planners
+
+    def _maybe_replan(
+        self, country_id: int, state: dict[str, Any],
+    ) -> StrategicContext | None:
+        """Run this empire's strategic planner if due; return its context."""
+        if not self._planner_config.enabled:
+            return None
+
+        from engine.strategic_planner import StrategicPlanner
+
+        with self._planner_lock:
+            planner = self._planners.get(country_id)
+            if planner is None:
+                planner = StrategicPlanner(
+                    provider=self._planner_provider,
+                    ruleset=self._rulesets[country_id],
+                    personality=self._personalities[country_id],
+                    interval_years=self._planner_config.interval_years,
+                )
+                self._planners[country_id] = planner
+
+        year = state.get("year", 0)
+        if planner.should_replan(year):
+            empire_name = _empire_display_name(state, country_id)
+            log.info("[%s] strategic re-plan (year %s)", empire_name, year)
+            planner.plan(state)
+        return planner.context
 
     def run(self) -> None:
         """Start the AI live loop.  Blocks until ``stop()`` is called."""
@@ -809,6 +877,10 @@ class AILoopController:
             event = self._detect_event(country_id, state)
         self._previous_states[country_id] = state
 
+        # Long-term plan (runs before the fast path so the planner keeps its
+        # cadence even while trivial decisions are handled in code)
+        strategic_context = self._maybe_replan(country_id, state)
+
         # Fast code-only path for obvious early-game decisions (skips LLM)
         if not event and self._fast_decisions:
             fast = self._try_fast_decision(country_id, state, ruleset)
@@ -817,10 +889,14 @@ class AILoopController:
 
         # Multi-agent path
         if self._multi_agent_config.enabled:
-            return self._process_council(country_id, state, event, ruleset, personality)
+            return self._process_council(
+                country_id, state, event, ruleset, personality, strategic_context,
+            )
 
         # Single-agent path
-        prompt = build_prompt(ruleset, personality, state, event)
+        prompt = build_prompt(
+            ruleset, personality, state, event, strategic_context=strategic_context,
+        )
 
         # Query LLM
         t0 = time.monotonic()
@@ -867,6 +943,7 @@ class AILoopController:
         event: str | None,
         ruleset: dict,
         personality: dict,
+        strategic_context: object | None = None,
     ) -> Directive | None:
         """Run multi-agent council for one AI empire."""
         from engine.multi_agent import CouncilOrchestrator
@@ -882,7 +959,7 @@ class AILoopController:
             )
 
         council = self._councils[country_id]
-        result = council.decide(state, event)
+        result = council.decide(state, event, strategic_context=strategic_context)
         directive = result.directive
         self.stats.last_decision_time_ms = result.total_latency_ms
 
@@ -1044,6 +1121,12 @@ class AILoopController:
                 government=government,
                 personality=self._personalities[country_id],
                 ruleset=ruleset,
+            )
+        # Refresh planner if it exists
+        planner = self._planners.get(country_id)
+        if planner is not None:
+            planner.update_context(
+                ruleset=ruleset, personality=self._personalities[country_id],
             )
 
         if cached is None:

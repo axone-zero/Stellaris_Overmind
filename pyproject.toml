@@ -26,10 +26,14 @@ training = [
 console = [
     "rich>=13.0",
 ]
+anthropic = [
+    "anthropic>=1.0",
+]
 tracking = [
     "wandb>=0.19",
 ]
 dev = [
+    "anthropic>=1.0",
     "pytest>=8.0",
     "ruff>=0.5",
     "mypy>=1.10",

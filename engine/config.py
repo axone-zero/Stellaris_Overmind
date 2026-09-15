@@ -36,6 +36,7 @@ class LLMConfig:
 
     # Hybrid / online mode
     mode: str = "local"                       # local | online | hybrid
+    online_provider: str = "openai-compat"    # openai-compat | anthropic
     online_base_url: str = ""                 # e.g. https://openrouter.ai/api/v1
     online_model: str = ""                    # e.g. qwen/qwen-2.5-72b-instruct
     online_api_key: str = ""
@@ -215,6 +216,7 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
         # Online sub-section
         if "online" in llm:
             ol = llm["online"]
+            cfg.llm.online_provider = ol.get("provider", cfg.llm.online_provider)
             cfg.llm.online_base_url = ol.get("base_url", cfg.llm.online_base_url)
             cfg.llm.online_model = ol.get("model", cfg.llm.online_model)
             cfg.llm.online_api_key = ol.get("api_key", cfg.llm.online_api_key)

@@ -39,6 +39,17 @@ def _build_local_provider(cfg) -> LLMProvider | None:
             timeout_s=cfg.llm.timeout_s,
         )
 
+    if name in ("anthropic", "claude"):
+        from engine.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider(
+            model=cfg.llm.model,
+            api_key=cfg.llm.api_key,
+            max_tokens=cfg.llm.max_tokens,
+            timeout_s=cfg.llm.timeout_s,
+            reasoning_effort=cfg.llm.reasoning_effort,
+        )
+
     if name in ("openai-compat", "openai", "ollama", "lm-studio", "lmstudio",
                  "azure", "foundry"):
         return OpenAICompatProvider(
@@ -57,6 +68,19 @@ def _build_local_provider(cfg) -> LLMProvider | None:
 
 def _build_online_provider(cfg) -> LLMProvider | None:
     """Build the online API provider from [llm.online] config."""
+    if cfg.llm.online_provider.lower() in ("anthropic", "claude"):
+        if not cfg.llm.online_model:
+            return None
+        from engine.anthropic_provider import AnthropicProvider
+
+        return AnthropicProvider(
+            model=cfg.llm.online_model,
+            api_key=cfg.llm.online_api_key,
+            max_tokens=cfg.llm.online_max_tokens,
+            timeout_s=cfg.llm.online_timeout_s,
+            reasoning_effort=cfg.llm.online_reasoning_effort,
+        )
+
     if not cfg.llm.online_base_url or not cfg.llm.online_model:
         return None
 
@@ -145,7 +169,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--provider", type=str, default=None,
-        help="Override LLM provider: qwen-vllm | openai-compat | stub",
+        help="Override LLM provider: qwen-vllm | openai-compat | anthropic | stub",
     )
     parser.add_argument(
         "--console", action="store_true",
@@ -250,6 +274,8 @@ def main() -> None:
             recorder=recorder,
             fast_decisions=cfg.target.fast_decisions,
             fast_cutoff_year=cfg.target.fast_cutoff_year,
+            planner_config=cfg.planner,
+            planner_provider=planner_provider,
         )
 
         log.info("=" * 60)
@@ -262,6 +288,14 @@ def main() -> None:
         log.info("  Fallen   : %s", "excluded" if cfg.target.ai_exclude_fallen else "included")
         log.info("  Council  : %s", "enabled" if cfg.multi_agent.enabled else "disabled")
         log.info("  Parallel : %s", cfg.multi_agent.parallel)
+        if cfg.planner.enabled:
+            planner_label = (
+                f"every {cfg.planner.interval_years}y via "
+                f"{planner_provider.name if planner_provider else 'code'}"
+            )
+        else:
+            planner_label = "disabled"
+        log.info("  Planner  : %s", planner_label)
         if bridge.mode == "autosave":
             log.info("  Save Dir : %s", bridge.save_dir)
         log.info("  Bridge   : %s", bridge.bridge_dir)

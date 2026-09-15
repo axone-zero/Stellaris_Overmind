@@ -67,8 +67,13 @@ def build_prompt(
     personality: dict,
     state: dict,
     event: str | None,
+    strategic_context: object | None = None,
 ) -> str:
     """Construct the LLM prompt from ruleset, personality, state, and event.
+
+    ``strategic_context`` is an optional ``StrategicContext`` from the
+    strategic planner; when given, its prompt block is injected so the
+    per-tick decision follows the long-term plan.
 
     The prompt is structured to give the LLM maximum context while
     constraining output to exactly one action in the required format.
@@ -148,6 +153,9 @@ def build_prompt(
 
     if mega_names:
         sections.append(f"MEGASTRUCTURES: consider building {mega_names}")
+
+    if strategic_context is not None and hasattr(strategic_context, "to_prompt_block"):
+        sections.extend(["", strategic_context.to_prompt_block()])
 
     sections.extend([
         "",
