@@ -93,7 +93,7 @@ if (-not (Test-Path $modTarget)) {
 }
 
 $absPath = ($modTarget -replace '\\','/')
-$desc = "name=""Stellaris Overmind""`npath=""$absPath""`ntags={`n`t""AI""`n`t""Gameplay""`n}`npicture=""thumbnail.png""`nsupported_version=""v4.3.*"""
+$desc = "name=""Stellaris Overmind""`npath=""$absPath""`ntags={`n`t""AI""`n`t""Gameplay""`n}`npicture=""thumbnail.png""`nsupported_version=""v4.4.*"""
 Set-Content $modDescTarget -Value $desc -Encoding UTF8 -NoNewline
 Write-Host "  Mod descriptor updated"
 
