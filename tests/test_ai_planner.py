@@ -177,7 +177,10 @@ def test_council_logs_each_advisor(caplog: pytest.LogCaptureFixture) -> None:
     advisors = [m for m in msgs if m.startswith("[Empire 3] advisor ")]
     assert {m.split()[3] for m in advisors} == {"domestic", "military"}
     assert any("conf " in m for m in advisors)
-    assert any(m.startswith("[Empire 3] council → ") and "method=" in m for m in msgs)
+    verdict = [m for m in msgs if m.startswith("[Empire 3] council → ")]
+    assert len(verdict) == 1
+    assert "arbiter=weights" in verdict[0]
+    assert "): " in verdict[0]  # ruler reason follows the parenthesis
 
 
 def test_code_only_planner_when_no_provider() -> None:

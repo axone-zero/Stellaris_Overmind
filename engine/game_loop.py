@@ -44,6 +44,15 @@ def _abs_month(state: dict[str, Any]) -> int:
     return int(state.get("year", 0)) * 12 + int(state.get("month", 0))
 
 
+def _arbiter_label(method: str) -> str:
+    """Human-readable arbitration method for log lines.
+
+    ``llm`` means the *local* decision model acted as ruler over the advisors;
+    the cloud planner (Opus) is never involved here.
+    """
+    return {"code": "arbiter=weights", "llm": "arbiter=local-llm"}.get(method, f"arbiter={method}")
+
+
 def _empire_display_name(state: dict, country_id: int) -> str:
     """Extract a human-readable empire name from state, falling back to ID."""
     name = state.get("empire", {}).get("name", "")
@@ -482,10 +491,12 @@ class GameLoopController:
         self.stats.last_decision_time_ms = result.total_latency_ms
 
         log.info(
-            "Council: method=%s agents=%d latency=%.0fms",
-            result.arbitration_method,
+            "Council → %s (%s, agents=%d, %.0fms): %s",
+            directive.action,
+            _arbiter_label(result.arbitration_method),
             len(result.recommendations),
             result.total_latency_ms,
+            directive.reason or "-",
         )
         for rec in result.recommendations:
             log.info(
@@ -1024,9 +1035,12 @@ class AILoopController:
         self.stats.last_action = f"{directive.action} ({empire_name})"
         self.stats.empire_status[empire_name] = directive.action
         log.info(
-            "[%s] council → %s (method=%s, %.0fms)",
-            empire_name, directive.action, result.arbitration_method,
+            "[%s] council → %s%s (%s, %.0fms): %s",
+            empire_name, directive.action,
+            f" @ {directive.target}" if directive.target else "",
+            _arbiter_label(result.arbitration_method),
             result.total_latency_ms,
+            directive.reason or "-",
         )
         return directive
 
