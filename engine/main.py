@@ -255,6 +255,11 @@ def main() -> None:
     # Build planner provider (may differ from main provider)
     planner_provider = _build_planner_provider(cfg, provider)
 
+    # Prompt shaping options
+    from engine.decision_engine import set_compact_json
+
+    set_compact_json(cfg.llm.compact_json)
+
     target_mode = cfg.target.mode.lower()
 
     if target_mode == "ai":
@@ -280,6 +285,7 @@ def main() -> None:
             fast_cutoff_year=cfg.target.fast_cutoff_year,
             planner_config=cfg.planner,
             planner_provider=planner_provider,
+            decision_interval_months=cfg.target.decision_interval_months,
         )
 
         log.info("=" * 60)
@@ -300,6 +306,11 @@ def main() -> None:
         else:
             planner_label = "disabled"
         log.info("  Planner  : %s", planner_label)
+        log.info(
+            "  Cadence  : %s",
+            f"every {cfg.target.decision_interval_months} months per empire (events bypass)"
+            if cfg.target.decision_interval_months else "every save",
+        )
         if bridge.mode == "autosave":
             log.info("  Save Dir : %s", bridge.save_dir)
         log.info("  Bridge   : %s", bridge.bridge_dir)

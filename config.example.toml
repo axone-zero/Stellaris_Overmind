@@ -33,7 +33,7 @@ base_url = "http://localhost:8000"
 # For 3B (~7GB VRAM): "Qwen/Qwen2.5-3B-Instruct"
 model = "Qwen/Qwen2.5-7B-Instruct-GPTQ-Int4"
 
-max_tokens = 256
+max_tokens = 96      # ACTION/TARGET + one-sentence REASON (raise to 256 for chattier models)
 temperature = 0.3
 timeout_s = 30.0
 
@@ -147,6 +147,12 @@ mode = "player"
 
 # AI mode only: skip Fallen Empires (they have special behavior)
 ai_exclude_fallen = true
+
+# AI mode only: give each empire a fresh decision only every N in-game months.
+# Events (war started, fleet destroyed, economy crash, ...) always trigger one.
+# 0 = decide for every empire on every save.  With many empires and frequent
+# autosaves, 3 keeps the local model's queue short.
+# decision_interval_months = 3
 
 [multi_agent]
 # Enable multi-agent council mode (experimental)

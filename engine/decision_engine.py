@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import Any
 
 from engine.llm_provider import LLMProvider
 from engine.meta_loader import load_meta
@@ -60,6 +61,23 @@ class Directive:
             "reason": self.reason,
             "parameters": self.parameters,
         }
+
+
+# Minified JSON for the CURRENT STATE block (config: [llm] compact_json).
+# The state is ~75% of the prompt; dropping indentation saves ~30% of its tokens.
+_COMPACT_JSON = True
+
+
+def set_compact_json(enabled: bool) -> None:
+    """Toggle minified state JSON in prompts (wired from config at startup)."""
+    global _COMPACT_JSON
+    _COMPACT_JSON = enabled
+
+
+def _dump_state(compact_state: dict[str, Any]) -> str:
+    if _COMPACT_JSON:
+        return json.dumps(compact_state, separators=(",", ":"))
+    return json.dumps(compact_state, indent=2)
 
 
 def build_prompt(
@@ -160,7 +178,7 @@ def build_prompt(
     sections.extend([
         "",
         "CURRENT STATE:",
-        json.dumps(compact_state, indent=2),
+        _dump_state(compact_state),
     ])
 
     if event:
@@ -170,7 +188,7 @@ def build_prompt(
         "\nRespond in EXACTLY this format:\n"
         "ACTION: <one action from the allowed list>\n"
         "TARGET: <target or NONE>\n"
-        "REASON: <must cite ruleset elements and meta rules>"
+        "REASON: <ONE sentence, max 40 words, citing ruleset elements and meta rules>"
     )
     return "\n".join(sections)
 

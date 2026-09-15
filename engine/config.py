@@ -111,6 +111,9 @@ class TargetConfig:
     ai_exclude_fallen: bool = True          # skip Fallen Empires by default
     fast_decisions: bool = True             # code-only fast path for trivial decisions
     fast_cutoff_year: int = 2250            # fast path applies before this year
+    # AI mode: re-decide for an empire only every N in-game months (events such
+    # as WAR_STARTED always trigger a decision).  0 = decide on every save.
+    decision_interval_months: int = 0
 
 
 @dataclass
@@ -269,6 +272,9 @@ def _load_toml(path: Path, cfg: OvermindConfig) -> OvermindConfig:
         cfg.target.ai_exclude_fallen = tgt.get("ai_exclude_fallen", cfg.target.ai_exclude_fallen)
         cfg.target.fast_decisions = tgt.get("fast_decisions", cfg.target.fast_decisions)
         cfg.target.fast_cutoff_year = tgt.get("fast_cutoff_year", cfg.target.fast_cutoff_year)
+        cfg.target.decision_interval_months = tgt.get(
+            "decision_interval_months", cfg.target.decision_interval_months,
+        )
 
     # Multi-agent section
     if "multi_agent" in data:

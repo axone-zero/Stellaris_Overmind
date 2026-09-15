@@ -39,6 +39,11 @@ log = logging.getLogger(__name__)
 _LOC_PATTERN = re.compile(r"%[A-Z_]+%")
 
 
+def _abs_month(state: dict[str, Any]) -> int:
+    """Absolute in-game month index (year*12 + month) for cadence checks."""
+    return int(state.get("year", 0)) * 12 + int(state.get("month", 0))
+
+
 def _empire_display_name(state: dict, country_id: int) -> str:
     """Extract a human-readable empire name from state, falling back to ID."""
     name = state.get("empire", {}).get("name", "")
@@ -171,6 +176,7 @@ class LoopStats:
     """Runtime statistics for monitoring."""
 
     decisions_made: int = 0
+    decisions_skipped: int = 0   # AI mode: empire not due for a new decision yet
     decisions_failed: int = 0
     llm_errors: int = 0
     validation_errors: int = 0
@@ -616,6 +622,7 @@ class AILoopController:
         fast_cutoff_year: int = 2250,
         planner_config: PlannerConfig | None = None,
         planner_provider: LLMProvider | None = None,
+        decision_interval_months: int = 0,
     ) -> None:
         self._provider = provider or StubProvider()
         self._bridge_config = bridge_config or BridgeConfig()
@@ -630,6 +637,12 @@ class AILoopController:
         self._fast_decisions = fast_decisions
         self._fast_cutoff_year = fast_cutoff_year
         self._running = False
+
+        # Decision cadence: an empire is re-evaluated only every N in-game
+        # months unless an event fires.  Keeps 16 empires x monthly autosaves
+        # within the local model's throughput.
+        self._decision_interval_months = max(0, decision_interval_months)
+        self._last_decision_month: dict[int, int] = {}
 
         # Strategic planner (opt-in): one planner per AI empire, each asking
         # the planner provider (e.g. Claude Opus) for a long-term plan every
@@ -663,10 +676,22 @@ class AILoopController:
         else:
             planner_label = "disabled"
         log.info(
-            "AI controller initialized: ids=%s exclude=%s parallel=%s multi_agent=%s planner=%s",
+            "AI controller initialized: ids=%s exclude=%s parallel=%s multi_agent=%s "
+            "planner=%s decision_interval=%s",
             country_ids or "all", exclude_ids or "none",
             parallel_empires, self._multi_agent_config.enabled, planner_label,
+            f"{self._decision_interval_months}mo"
+            if self._decision_interval_months else "every save",
         )
+
+    def _is_due(self, country_id: int, state: dict[str, Any]) -> bool:
+        """True if this empire should get a fresh decision on this save."""
+        if self._decision_interval_months <= 0:
+            return True
+        last = self._last_decision_month.get(country_id)
+        if last is None:
+            return True
+        return _abs_month(state) - last >= self._decision_interval_months
 
     # ------------------------------------------------------------------ #
     # Strategic planner (per empire)
@@ -840,6 +865,7 @@ class AILoopController:
         the native build queues and economic planning.
         """
         if directive is not None:
+            self._last_decision_month[country_id] = _abs_month(state)
             payload = directive.to_dict()
             payload["country_id"] = country_id
             payload["timestamp"] = f"{state.get('year', 0)}.{state.get('month', 0)}"
@@ -880,6 +906,15 @@ class AILoopController:
         # Long-term plan (runs before the fast path so the planner keeps its
         # cadence even while trivial decisions are handled in code)
         strategic_context = self._maybe_replan(country_id, state)
+
+        # Decision cadence: skip empires that are not due yet (events bypass)
+        if not event and not self._is_due(country_id, state):
+            self.stats.decisions_skipped += 1
+            log.debug(
+                "[%s] not due for a decision yet (interval %d months)",
+                _empire_display_name(state, country_id), self._decision_interval_months,
+            )
+            return None
 
         # Fast code-only path for obvious early-game decisions (skips LLM)
         if not event and self._fast_decisions:
