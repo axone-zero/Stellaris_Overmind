@@ -719,6 +719,7 @@ class AILoopController:
                     ruleset=self._rulesets[country_id],
                     personality=self._personalities[country_id],
                     interval_years=self._planner_config.interval_years,
+                    label=_empire_display_name(state, country_id),
                 )
                 self._planners[country_id] = planner
 

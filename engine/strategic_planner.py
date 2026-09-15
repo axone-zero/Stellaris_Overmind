@@ -431,12 +431,17 @@ class StrategicPlanner:
         ruleset: dict,
         personality: dict,
         interval_years: int = 5,
+        label: str = "",
     ) -> None:
         self._provider = provider
         self._ruleset = ruleset
         self._personality = personality
         self._interval_years = interval_years
+        self._label = label  # empire name for log lines (AI mode runs many planners)
         self._context: StrategicContext | None = None
+
+    def _log_prefix(self) -> str:
+        return f"[{self._label}] " if self._label else ""
 
     @property
     def context(self) -> StrategicContext | None:
@@ -470,20 +475,27 @@ class StrategicPlanner:
                 ctx.generation_latency_ms = (time.monotonic() - t0) * 1000
                 self._context = ctx
                 log.info(
-                    "Strategic plan (LLM): phase=%s focus=%s threats=%s latency=%.0fms",
-                    ctx.phase, ctx.recommended_focus, ctx.threat_level,
-                    ctx.generation_latency_ms,
+                    "%sStrategic plan (LLM): phase=%s focus=%s threat=%s (%s) "
+                    "priorities=%s latency=%.0fms | %s",
+                    self._log_prefix(), ctx.phase, ctx.recommended_focus,
+                    ctx.threat_level, ctx.primary_threat or "no specific threat",
+                    ",".join(ctx.priorities), ctx.generation_latency_ms,
+                    ctx.arc_summary or "-",
                 )
                 return ctx
             except (LLMProviderError, ValueError) as exc:
-                log.warning("LLM planner failed (%s), falling back to code", exc)
+                log.warning(
+                    "%sLLM planner failed (%s), falling back to code",
+                    self._log_prefix(), exc,
+                )
 
         ctx = assess_code(state, self._personality, self._context)
         ctx.generation_latency_ms = (time.monotonic() - t0) * 1000
         self._context = ctx
         log.info(
-            "Strategic plan (code): phase=%s focus=%s threats=%s",
-            ctx.phase, ctx.recommended_focus, ctx.threat_level,
+            "%sStrategic plan (code): phase=%s focus=%s threat=%s (%s)",
+            self._log_prefix(), ctx.phase, ctx.recommended_focus,
+            ctx.threat_level, ctx.primary_threat or "no specific threat",
         )
         return ctx
 

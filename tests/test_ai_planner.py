@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from engine.config import PlannerConfig
 from engine.decision_engine import build_prompt
 from engine.game_loop import AILoopController
@@ -142,6 +144,20 @@ def test_parallel_empires_get_separate_planners() -> None:
     controller.process_states(states)
     assert sorted(controller.planners) == [1, 2, 3, 4]
     assert planner.calls == 4
+
+
+def test_plan_log_names_the_empire(caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
+    planner = _PlannerStub()
+    controller = _controller(planner)
+    with caplog.at_level(logging.INFO, logger="engine.strategic_planner"):
+        controller.process_states([_state(7, 2210)])
+    lines = [r.getMessage() for r in caplog.records if "Strategic plan (LLM)" in r.getMessage()]
+    assert len(lines) == 1
+    assert lines[0].startswith("[Empire 7] ")
+    assert "threat=high" in lines[0]
+    assert "Rebuild the fleet" in lines[0]
 
 
 def test_code_only_planner_when_no_provider() -> None:
